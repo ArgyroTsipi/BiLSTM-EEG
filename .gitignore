@@ -1,0 +1,6 @@
+# Ignore virtual environment
+myenv/
+
+# Ignore system files
+.DS_Store
+Thumbs.db
