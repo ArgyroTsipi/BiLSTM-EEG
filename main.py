@@ -1,24 +1,24 @@
-import jax
-import jax.numpy as jnp
-from flax import linen as nn
-from flax.training import train_state
-import optax
-import pandas as pd
-import numpy as np
+import tensorflow as tf
 from sklearn.model_selection import LeaveOneOut
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.metrics import accuracy_score
+import pandas as pd
+import numpy as np
 
 # Load datasets
-eeg_data = pd.read_csv('path_to_eeg_data.csv')  # Replace with your EEG data file path
-demo_data = pd.read_csv('path_to_demographics.csv')  # Replace with demographic info file path
+eeg_data = pd.read_csv('/Users/argyro/BiLSTM-EEG/EEG_data.csv')  # Replace with your EEG data file path
+demo_data = pd.read_csv('/Users/argyro/BiLSTM-EEG/demographic_info.csv')  # Replace with demographic info file path
+print(demo_data.columns)
 
 # Merge datasets
-merged_data = pd.merge(eeg_data, demo_data, left_on='SubjectID', right_on='Subject ID')
+merged_data = pd.merge(eeg_data, demo_data, left_on='SubjectID', right_on='SubjectID')
 
 # Preprocess features
-scaler = StandardScaler()
+# EEG Columns
 eeg_features = ['Attention', 'Mediation', 'Raw', 'Delta', 'Theta', 'Alpha1', 'Alpha2', 'Beta1', 'Beta2', 'Gamma1', 'Gamma2']
+
+# Normalize data
+scaler = StandardScaler()
 merged_data[eeg_features] = scaler.fit_transform(merged_data[eeg_features])
 
 # Encode demographic features
@@ -41,50 +41,34 @@ max_sequence_length = max([len(seq) for seq in sequences])
 X_padded = np.array([np.pad(seq, ((0, max_sequence_length - len(seq)), (0, 0)), mode='constant') for seq in sequences])
 y = np.array(labels)
 
-# Define JAX/Flax Model
-class BiLSTMModel(nn.Module):
-    hidden_size: int
-    output_size: int
+# Print data shape
+print(f"Original data shape: {X_padded.shape}")
+print(f"Labels shape: {y.shape}")
 
-    def setup(self):
-        self.lstm = nn.LSTMCell(name="lstm_cell")
-        self.fc1 = nn.Dense(32)
-        self.fc2 = nn.Dense(self.output_size)
+# BiLSTM Model Definition
+class BiLSTMModel(tf.keras.Model):
+    def __init__(self, hidden_size, output_size):
+        super(BiLSTMModel, self).__init__()
+        self.bilstm = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(hidden_size, return_sequences=False))
+        self.fc1 = tf.keras.layers.Dense(32, activation='relu')
+        self.fc2 = tf.keras.layers.Dense(output_size, activation='sigmoid')
 
-    def __call__(self, x):
-        # LSTM
-        state = self.lstm.initialize_carry(rng=jax.random.PRNGKey(0), batch_size=x.shape[0], input_size=1)
-        outputs = []
-        for t in range(x.shape[1]):  # Iterate over time steps
-            state, out = self.lstm(state, x[:, t])
-            outputs.append(out)
-        
-        x = jnp.stack(outputs, axis=1)  # Stack the LSTM outputs
-        x = x[:, -1, :]  # Use the last time step output
+    def call(self, inputs):
+        x = self.bilstm(inputs)
         x = self.fc1(x)
-        x = jax.nn.relu(x)
         x = self.fc2(x)
-        x = jax.nn.sigmoid(x)
         return x
 
-# Create the training state
-def create_train_state(model, learning_rate):
-    params = model.init(jax.random.PRNGKey(0), jnp.ones((1, max_sequence_length, X_padded.shape[2])))
-    tx = optax.adam(learning_rate)
-    return train_state.TrainState.create(apply_fn=model.apply, params=params, tx=tx)
-
-# Training loop
-def train_step(state, batch):
-    def loss_fn(params):
-        inputs, targets = batch
-        logits = state.apply_fn({'params': params}, inputs)
-        loss = jnp.mean(optax.sigmoid_binary_cross_entropy(logits, targets))
-        return loss
-
-    grad_fn = jax.value_and_grad(loss_fn)
-    loss, grads = grad_fn(state.params)
-    state = state.apply_gradients(grads=grads)
-    return state, loss
+# Training function
+def train_step(model, inputs, targets, optimizer):
+    with tf.GradientTape() as tape:
+        logits = model(inputs)
+        targets = tf.reshape(targets, (-1,1))
+        loss = tf.reduce_mean(tf.keras.losses.binary_crossentropy(targets, logits))
+    
+    grads = tape.gradient(loss, model.trainable_variables)
+    optimizer.apply_gradients(zip(grads, model.trainable_variables))
+    return loss
 
 # Leave-One-Out Cross-Validation
 loo = LeaveOneOut()
@@ -94,23 +78,30 @@ for train_index, test_index in loo.split(X_padded):
     X_train, X_test = X_padded[train_index], X_padded[test_index]
     y_train, y_test = y[train_index], y[test_index]
 
-    # Create DataLoader (custom function)
-    train_data = (X_train, y_train)
-    test_data = (X_test, y_test)
+    # Print the size of training and test sets
+    print(f"Training set size: {X_train.shape}, Test set size: {X_test.shape}")
 
     # Initialize model and optimizer
     model = BiLSTMModel(hidden_size=64, output_size=1)
-    state = create_train_state(model, learning_rate=0.001)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
 
     # Training loop
     for epoch in range(10):  # Train for 10 epochs
-        state, train_loss = train_step(state, train_data)
-        print(f"Epoch {epoch}, Train Loss: {train_loss:.4f}")
+        loss = train_step(model, X_train, y_train, optimizer)
+        print(f"Epoch {epoch}, Train Loss: {loss:.4f}")
 
     # Evaluation
-    logits = state.apply_fn({'params': state.params}, X_test)
-    predictions = (logits.squeeze() > 0.5).astype(int)  # Binary classification
+    logits = model(X_test)
+    predictions = (tf.squeeze(logits).numpy() > 0.5).astype(int)
+    predictions = np.array([predictions]) if predictions.ndim == 0 else predictions
+
+    # Print true labels and predictions for debugging
+    print(f"True labels: {y_test}")
+    print(f"Predictions: {predictions}")
+
+    # Calculate accuracy
     accuracy = accuracy_score(y_test, predictions)
+    print(f"Fold accuracy: {accuracy:.2f}")
     accuracies.append(accuracy)
 
 # Final accuracy
