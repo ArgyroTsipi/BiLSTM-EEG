@@ -101,16 +101,16 @@ for train_index, test_index in loo.split(X_padded):
     training_losses_all_folds.append(training_losses)
     
   # Plot the training loss after all epochs for each fold
-    plt.figure(figsize=(10, 6))
-    plt.plot(range(1, 11), training_losses, marker='o', label='Training Loss')
-    plt.title(f'Training Loss per Epoch - Fold {len(accuracies)+1}')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.grid()
-    plt.show()
-    #plt.ion()
-    #plt.savefig()
+    #plt.figure(figsize=(10, 6))
+    #plt.plot(range(1, 11), training_losses, marker='o', label='Training Loss')
+    #plt.title(f'Training Loss per Epoch - Fold {len(accuracies)+1}')
+    #plt.xlabel('Epoch')
+    #plt.ylabel('Loss')
+    #plt.legend()
+    #plt.grid()
+    #plt.show()
+    #plt.ion() - del
+    #plt.savefig() - del
     # Evaluation
     logits = model(X_test)
     predictions = (tf.squeeze(logits).numpy() > 0.5).astype(int)
@@ -185,4 +185,29 @@ plt.xlabel('Fold')
 plt.ylabel('F1-Score')
 plt.legend()
 plt.grid()
+plt.show()
+
+# Create a subplot with histograms and box plots
+fig, axs = plt.subplots(1, 2, figsize=(14, 6))
+
+# Histograms on the left
+axs[0].hist(accuracies, bins=10, color='skyblue', edgecolor='black', alpha=0.7)
+axs[0].axvline(np.mean(accuracies), color='r', linestyle='--', label=f'Mean Accuracy ({np.mean(accuracies):.2f})')
+axs[0].set_title('Accuracy Distribution across Folds')
+axs[0].set_xlabel('Accuracy')
+axs[0].set_ylabel('Frequency')
+axs[0].legend()
+axs[0].grid(True)
+
+# Box plot on the right
+axs[1].boxplot([accuracies, precisions, recalls, f1_scores], 
+               labels=['Accuracy', 'Precision', 'Recall', 'F1-Score'], 
+               patch_artist=True, 
+               boxprops=dict(facecolor="skyblue", color="black"), 
+               flierprops=dict(markerfacecolor='r', marker='o', markersize=8))
+axs[1].set_title('Boxplot of Metrics')
+axs[1].set_ylabel('Metric Value')
+axs[1].grid(True)
+
+plt.tight_layout()
 plt.show()
