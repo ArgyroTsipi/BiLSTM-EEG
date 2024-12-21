@@ -4,6 +4,7 @@ from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 
 # Load datasets
 eeg_data = pd.read_csv('/Users/argyro/BiLSTM-EEG/EEG_data.csv')  # Replace with your EEG data file path
@@ -86,12 +87,30 @@ for train_index, test_index in loo.split(X_padded):
     # Initialize model and optimizer
     model = BiLSTMModel(hidden_size=64, output_size=1)
     optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
+    
+    # Track training loss
+    training_losses = []
+    training_losses_all_folds = [] 
 
     # Training loop
     for epoch in range(10):  # Train for 10 epochs
         loss = train_step(model, X_train, y_train, optimizer)
+        training_losses.append(loss.numpy())  # Append loss to the list
         print(f"Epoch {epoch}, Train Loss: {loss:.4f}")
-
+        
+    training_losses_all_folds.append(training_losses)
+    
+  # Plot the training loss after all epochs for each fold
+    plt.figure(figsize=(10, 6))
+    plt.plot(range(1, 11), training_losses, marker='o', label='Training Loss')
+    plt.title(f'Training Loss per Epoch - Fold {len(accuracies)+1}')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.grid()
+    plt.show()
+    #plt.ion()
+    #plt.savefig()
     # Evaluation
     logits = model(X_test)
     predictions = (tf.squeeze(logits).numpy() > 0.5).astype(int)
@@ -119,3 +138,51 @@ print(f"LOOCV Accuracy: {np.mean(accuracies):.2f}")
 print(f"LOOCV Precision: {np.mean(precisions):.2f}")
 print(f"LOOCV Recall: {np.mean(recalls):.2f}")
 print(f"LOOCV F1-Score: {np.mean(f1_scores):.2f}")
+
+###########################################################
+# Create a range for folds
+folds = list(range(1, len(accuracies) + 1))
+
+# Plot Accuracy
+plt.figure(figsize=(10, 6))
+plt.plot(folds, accuracies, marker='o', label='Accuracy')
+plt.axhline(y=np.mean(accuracies), color='r', linestyle='--', label=f'Mean Accuracy ({np.mean(accuracies):.2f})')
+plt.title('Accuracy per Fold')
+plt.xlabel('Fold')
+plt.ylabel('Accuracy')
+plt.legend()
+plt.grid()
+plt.show()
+
+# Plot Precision
+plt.figure(figsize=(10, 6))
+plt.plot(folds, precisions, marker='o', label='Precision', color='orange')
+plt.axhline(y=np.mean(precisions), color='r', linestyle='--', label=f'Mean Precision ({np.mean(precisions):.2f})')
+plt.title('Precision per Fold')
+plt.xlabel('Fold')
+plt.ylabel('Precision')
+plt.legend()
+plt.grid()
+plt.show()
+
+# Plot Recall
+plt.figure(figsize=(10, 6))
+plt.plot(folds, recalls, marker='o', label='Recall', color='green')
+plt.axhline(y=np.mean(recalls), color='r', linestyle='--', label=f'Mean Recall ({np.mean(recalls):.2f})')
+plt.title('Recall per Fold')
+plt.xlabel('Fold')
+plt.ylabel('Recall')
+plt.legend()
+plt.grid()
+plt.show()
+
+# Plot F1-Score
+plt.figure(figsize=(10, 6))
+plt.plot(folds, f1_scores, marker='o', label='F1-Score', color='purple')
+plt.axhline(y=np.mean(f1_scores), color='r', linestyle='--', label=f'Mean F1-Score ({np.mean(f1_scores):.2f})')
+plt.title('F1-Score per Fold')
+plt.xlabel('Fold')
+plt.ylabel('F1-Score')
+plt.legend()
+plt.grid()
+plt.show()
