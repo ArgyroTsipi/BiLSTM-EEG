@@ -1,7 +1,7 @@
 import tensorflow as tf
 from sklearn.model_selection import LeaveOneOut
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import pandas as pd
 import numpy as np
 
@@ -26,23 +26,22 @@ encoder = OneHotEncoder()
 demographic_features = pd.DataFrame(encoder.fit_transform(merged_data[['gender', 'ethnicity']]).toarray())
 merged_data = pd.concat([merged_data, demographic_features], axis=1)
 
-# Prepare sequences and labels
-X = merged_data[eeg_features + demographic_features.columns.tolist()].values
-y = merged_data['user-definedlabeln'].values  # Replace with the correct label column
-y_binary = np.array(y).astype('int')  # Binary target
+# Prepare sequences and labels (group by SubjectID and VideoID)
+sequences = []
+labels = []
 
-# Reshape for time-series (group by SubjectID and VideoID for sequences)
-subjects = merged_data['SubjectID'].unique()
-sequences = [merged_data[merged_data['SubjectID'] == subj][eeg_features].values for subj in subjects]
-labels = [merged_data[merged_data['SubjectID'] == subj]['user-definedlabeln'].values[0] for subj in subjects]
+# Group by SubjectID and VideoID
+for (subject, video), group in merged_data.groupby(['SubjectID', 'VideoID']):
+    sequences.append(group[eeg_features].values)
+    labels.append(group['user-definedlabeln'].values[0])  # Binary confusion label for the video
 
-# Pad sequences if needed
+# Pad sequences to match the longest video sequence
 max_sequence_length = max([len(seq) for seq in sequences])
 X_padded = np.array([np.pad(seq, ((0, max_sequence_length - len(seq)), (0, 0)), mode='constant') for seq in sequences])
 y = np.array(labels)
 
 # Print data shape
-print(f"Original data shape: {X_padded.shape}")
+print(f"Padded data shape: {X_padded.shape}")
 print(f"Labels shape: {y.shape}")
 
 # BiLSTM Model Definition
@@ -73,6 +72,9 @@ def train_step(model, inputs, targets, optimizer):
 # Leave-One-Out Cross-Validation
 loo = LeaveOneOut()
 accuracies = []
+precisions = []
+recalls = []
+f1_scores = []
 
 for train_index, test_index in loo.split(X_padded):
     X_train, X_test = X_padded[train_index], X_padded[test_index]
@@ -99,10 +101,21 @@ for train_index, test_index in loo.split(X_padded):
     print(f"True labels: {y_test}")
     print(f"Predictions: {predictions}")
 
-    # Calculate accuracy
+    # Calculate metrics
     accuracy = accuracy_score(y_test, predictions)
-    print(f"Fold accuracy: {accuracy:.2f}")
-    accuracies.append(accuracy)
+    precision = precision_score(y_test, predictions, zero_division=1)
+    recall = recall_score(y_test, predictions, zero_division=1)
+    f1 = f1_score(y_test, predictions, zero_division=1)
 
-# Final accuracy
+    # Log metrics
+    print(f"Fold Accuracy: {accuracy:.2f}, Precision: {precision:.2f}, Recall: {recall:.2f}, F1-Score: {f1:.2f}")
+    accuracies.append(accuracy)
+    precisions.append(precision)
+    recalls.append(recall)
+    f1_scores.append(f1)
+
+# Final Metrics
 print(f"LOOCV Accuracy: {np.mean(accuracies):.2f}")
+print(f"LOOCV Precision: {np.mean(precisions):.2f}")
+print(f"LOOCV Recall: {np.mean(recalls):.2f}")
+print(f"LOOCV F1-Score: {np.mean(f1_scores):.2f}")
