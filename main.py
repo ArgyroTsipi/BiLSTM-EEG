@@ -152,7 +152,8 @@ plt.xlabel('Fold')
 plt.ylabel('Accuracy')
 plt.legend()
 plt.grid()
-plt.show()
+#plt.show()
+plt.savefig('/Users/argyro/BiLSTM-EEG/plots/accuracy.png')
 
 # Plot Precision
 plt.figure(figsize=(10, 6))
@@ -163,7 +164,8 @@ plt.xlabel('Fold')
 plt.ylabel('Precision')
 plt.legend()
 plt.grid()
-plt.show()
+#plt.show()
+plt.savefig('/Users/argyro/BiLSTM-EEG/plots/precision.png')
 
 # Plot Recall
 plt.figure(figsize=(10, 6))
@@ -174,7 +176,8 @@ plt.xlabel('Fold')
 plt.ylabel('Recall')
 plt.legend()
 plt.grid()
-plt.show()
+#plt.show()
+plt.savefig('/Users/argyro/BiLSTM-EEG/plots/recall.png')
 
 # Plot F1-Score
 plt.figure(figsize=(10, 6))
@@ -185,7 +188,8 @@ plt.xlabel('Fold')
 plt.ylabel('F1-Score')
 plt.legend()
 plt.grid()
-plt.show()
+#plt.show()
+plt.savefig('/Users/argyro/BiLSTM-EEG/plots/f1score.png')
 
 # Create a subplot with histograms and box plots
 fig, axs = plt.subplots(1, 2, figsize=(14, 6))
@@ -210,4 +214,5 @@ axs[1].set_ylabel('Metric Value')
 axs[1].grid(True)
 
 plt.tight_layout()
-plt.show()
+#plt.show()
+plt.savefig('/Users/argyro/BiLSTM-EEG/plots/histobox.png')
